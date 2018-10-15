@@ -1,0 +1,287 @@
+java project->web app-> xml 추가
+
+<boardcontroller>
+abstract 상속 후 write list read 메소드 추가
+
+
+<AbstractController>
+httpservlet을 상속받는 추상 클래스
+한 클래스에서 모든 컨트롤 처리
+현재 실행하고 있는 url을 안다음 그 메소드를 실항하는 코드.
+
+ private String basic = "/board/";
+
+    @Override
+    protected void service(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
+        System.out.println("service");
+
+
+        String path = req.getRequestURI().substring(basic.length());//write, read ...알기 위해
+        String way = req.getMethod(); //get, post 알아옴
+
+        System.out.println(path + ": " + way);
+
+        String methodName = path + way; // writeGET, listGET 등등등등
+
+        Class clz = this.getClass();
+        try {
+            Method method = clz.getDeclaredMethod(methodName,HttpServletRequest.class,HttpServletResponse.class);//모든 클래스를 통해서 클래스의 메소드를 찾음
+
+            method.invoke(this, req,resp);//invoke 이용 호출
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+를 추가하여 이용 ->컨트롤을 여러개 안 만들어도 됨.
+
+//리 다이랙트는 리다이랙트하게 보내고 아니면 디스팻처하게
+if(returnURL.startsWith("redirect")){
+                resp.sendRedirect(returnURL.substring(9));
+            }
+            req.getRequestDispatcher("/WEB-INF/"+returnURL+".jsp").forward(req,resp); //리 다이랙트는 리다이랙트하게 보내고 아니면 디스팻처하게
+
+
+<boardcont>에
+ return "write";를 메소드 마다 추가
+
+
+
+<Converter>
+문자를 정수로 변환해주는 메소드
+
+----------------------------------------------------
+dao package에 excutor, queryExcutor 추가
+
+<BoardDAO>생성
+//변경되는 쿼리가 아니면 enum 또는 final
+    private static final String INSERT = "insert into tbl_board(BNO,TITLE,CONTENT,WRITER)\n" +
+            "values (SEQ_BOARD.nextval,?,?,?)";
+
+create 메소드에
+new QueryExecutor 후 dojob 오버라이드
+
+
+
+
+
+
+
+
+
+<BoardVO> 생성
+@Data
+public class BoardVO {
+    private Integer bno;
+    private String title, content,writer;
+    private Date regdate, updatedate;
+    
+}
+
+
+
+
+
+
+test폴더에 BoarDAOTests 추가
+
+메이븐에 
+<dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <version>4.12</version>
+            <scope>test</scope>
+        </dependency>
+
+
+
+
+-----------------
+resouces에 db.sql추가.
+위에 알람이 뜨는데 확인 후 아이피와 로그인 추가 하기.
+
+sql 문에.. 페이징 쿼리
+
+select *
+from(
+
+select
+ /*+INDEX_DESC (tbl_board pk_board) */
+ ROWNUM rn, BNO,TITLE,CONTENT,WRITER,REGDATE,UPDATEDATE
+from TBL_BOARD
+where BNO>0
+and rownum <= (2*10))
+where rn >(2-1) * 10
+;
+
+<pageDTO>
+sql ?  페이지를 처리하기 위해...
+
+
+<boardDAO>
+select *
+from(
+
+select
+ /*+INDEX_DESC (tbl_board pk_board) */
+ ROWNUM rn, BNO,TITLE,CONTENT,WRITER,REGDATE,UPDATEDATE
+from TBL_BOARD
+where BNO>0
+and rownum <= (?*?))
+where rn >(?-1) * ?
+
+sql 문을 추가한 후 
+getList 메소드 구현....
+//인덱스 이용한 쿼리 값 넣기
+                while (rs.next()){
+                    BoardVO vo = new BoardVO();
+                    int idx =2;
+                    vo.setBno(rs.getInt(idx++));
+                    vo.setTitle(rs.getString(idx++));
+                    vo.setContent(rs.getString(idx++));
+                    vo.setWriter(rs.getString(idx++));
+                    vo.setRegdate(rs.getDate(idx++));
+                    vo.setUpdatedate(rs.getDate(idx++));
+                    list.add(vo);
+
+                }
+
+
+-----------------------------------------------------------------------------------
+<Convert> 수정
+
+<boardCont>
+public String listGET(HttpServletRequest req, HttpServletResponse resp) throws Exception{
+        System.out.println("listGET...");
+
+        PageDTO dto = PageDTO.of().setPage(Converter.getInt(req.getParameter("page"),1)).
+                                   setSize(Converter.getInt(req.getParameter("size"),10));
+        req.setAttribute("list",dao.getList(dto));
+        return "list";
+페이지 보내기...
+
+<list.jsp>
+
+<c:forEach var="board" items="${list}" >
+                            <tr class="odd gradeX">
+                                <td>${board.bno}</td>
+                                <td>${board.title}</td>
+                                <td>${board.writer}</td>
+                                <td>${board.regdate}</td>
+                                <td>${board.updatedate}</td>
+                            </tr>
+                        </c:forEach>
+
+
+--jstl 페이지 처리....
+java로 만들어버리기.
+end: Math.ceil(page/10.0)*10
+start=end-9;
+total/size ->진짜 end
+prev:start 가 1이 아니면
+next: end*size < total
+
+
+<PageInfo>생성
+
+-------------------------
+list.jsp
+bootstrap paging
+
+<ul class="pagination">
+  <li><a href="#">1</a></li>
+  <li class="active"><a href="#">2</a></li>
+  <li><a href="#">3</a></li>
+  <li><a href="#">4</a></li>
+  <li><a href="#">5</a></li>
+</ul>
+붙어넣으면 페이지 버튼 나옴
+
+버튼 수정
+         <c:if test="${pageMaker.prev}">
+                                <li><a href="#">Prev</a> </li>
+                            </c:if>
+
+                            <c:forEach begin="${pageMaker.start}" end = "${pageMaker.end}" var="num">
+                                <li><a href="#">${num}</a></li>
+                            </c:forEach>
+
+
+
+
+
+                            <c:if test="${pageMaker.next}">
+                                <li><a href="#">Next</a> </li>
+                            </c:if>
+
+
+
+현재 페이지번호 엑티브 처리 :해당 버튼만 색깔 바뀜
+ <li ${pageMaker.pageDTO.page == num?"class='active'":""}><a href="#">${num}</a></li>
+
+a href 처리
+<c:if test="${pageMaker.prev}">
+                                <li><a href="list?page=${pageMaker.start-1}&size=${pageMaker.pageDTO.size}">Prev</a> </li>
+                            </c:if>
+
+                            <c:forEach begin="${pageMaker.start}" end = "${pageMaker.end}" var="num">
+                                <li ${pageMaker.pageDTO.page == num?"class='active'":""}><a href="list?page=${num}&size=${pageMaker.pageDTO.size}">${num}</a></li>
+                            </c:forEach>
+
+                            <c:if test="${pageMaker.next}">
+                                <li><a href="list?page=${pageMaker.end+1}&size=${pageMaker.pageDTO.size}">Next</a> </li>
+                            </c:if>
+
+
+페이지 별로 몇개씩 나오게..(자바스크립트,,,)
+
+
+<select>
+                        <option value="10">10</option>
+                        <option value="20">20</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                    </select>
+                </div>
+
+
+------------------------------------------------------------------
+쿠키를 이용한 조회:
+조희에 들어오면 쿠키가 있는지 확인
+쿠키이름:views
+
+만일 views쿠키가 없다면:
+ dao 조회 1을 증가시킨다
+ views라는 이름의 쿠키를 생성
+         값은 현재 게시물 번호
+ resp에 추가 전송
+
+만일 views쿠키가 있다면:
+ 값을 꺼낸다
+ 게시물 번호가 존재하는지 확인
+  만일 없다면? 값에 추가
+  만일 있다면? 원래 그대로
+다시 쿠키 값으로 지정
+다시 resp에 추가
+-------------------------
+<BoardDAO>에 getBoard 추가
+
+5701646	헤
+
+<boardcontroller>
+readGET에 쿠키 확인 추가
+--------------------------------------------------------------------접근 금지임다
+
+
+어서오세요 여러분..
+반갑습니다. 
+^- ^  
+Hello 
+자...
+무엇을....
+하좃.....
+뭐부터...하좃...
+
+자...
+의견 내주세요....
+
